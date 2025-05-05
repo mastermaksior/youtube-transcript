@@ -1,47 +1,68 @@
 <!DOCTYPE html>
-<html lang="pl">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Transkrypcja YouTube</title>
+  <title>YouTube Transcript Viewer</title>
   <style>
-    body { font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; }
-    textarea { width: 100%; height: 400px; margin-top: 20px; }
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      max-width: 700px;
+      margin: auto;
+    }
+    #transcript {
+      white-space: pre-wrap;
+      margin-top: 20px;
+      border: 1px solid #ccc;
+      padding: 10px;
+    }
   </style>
 </head>
 <body>
-  <h1>Transkrypcja filmu YouTube</h1>
-  <input type="text" id="videoId" placeholder="Wklej ID filmu lub URL" style="width:100%; padding:10px;" />
-  <button onclick="getTranscript()">Pobierz transkrypcję</button>
-  <textarea id="transcript" placeholder="Tutaj pojawi się transkrypcja..."></textarea>
+  <h1>YouTube Transcript</h1>
+  <input type="text" id="youtubeUrl" placeholder="Paste YouTube link" size="50">
+  <select id="lang">
+    <option value="en">English</option>
+    <option value="pl">Polski</option>
+    <option value="es">Español</option>
+  </select>
+  <button onclick="getTranscript()">Get Transcript</button>
+
+  <div id="transcript"></div>
 
   <script>
-    function extractVideoId(url) {
-      const regex = /(?:youtube\.com.*[?&]v=|youtu\.be\/)([^&\n?#]+)/;
-      const match = url.match(regex);
-      return match ? match[1] : url;
+    function getVideoId(url) {
+      const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([a-zA-Z0-9_-]{11})/);
+      return match ? match[1] : null;
     }
 
     async function getTranscript() {
-      const input = document.getElementById('videoId').value.trim();
-      const videoId = extractVideoId(input);
-      const transcriptBox = document.getElementById('transcript');
-      transcriptBox.value = "Pobieranie transkrypcji...";
+      const url = document.getElementById("youtubeUrl").value.trim();
+      const lang = document.getElementById("lang").value;
+      const videoId = getVideoId(url);
+      const transcriptDiv = document.getElementById("transcript");
 
-      const url = `https://video.google.com/timedtext?lang=en&v=${videoId}`;
+      if (!videoId) {
+        transcriptDiv.textContent = "Invalid YouTube URL.";
+        return;
+      }
+
+      const transcriptUrl = `https://video.google.com/timedtext?lang=${lang}&v=${videoId}`;
+      
       try {
-        const response = await fetch(url);
-        const xml = await response.text();
+        const res = await fetch(transcriptUrl);
+        if (!res.ok) throw new Error("No captions found.");
+        const xml = await res.text();
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(xml, "text/xml");
-        const texts = xmlDoc.getElementsByTagName("text");
 
-        let transcript = "";
-        for (let i = 0; i < texts.length; i++) {
-          transcript += texts[i].textContent + " ";
-        }
-        transcriptBox.value = transcript || "Brak transkrypcji (napisów) dla tego filmu.";
-      } catch (err) {
-        transcriptBox.value = "Błąd podczas pobierania transkrypcji.";
+        const texts = Array.from(xmlDoc.getElementsByTagName("text")).map(el =>
+          el.textContent.replace(/&#39;/g, "'").replace(/&quot;/g, '"')
+        );
+
+        transcriptDiv.textContent = texts.length ? texts.join("\n") : "No transcript found.";
+      } catch (e) {
+        transcriptDiv.textContent = "Transcript could not be loaded.";
       }
     }
   </script>
