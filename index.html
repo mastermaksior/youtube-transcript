@@ -1,70 +1,55 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>YouTube Transcript Viewer</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 20px;
-      max-width: 700px;
-      margin: auto;
-    }
-    #transcript {
-      white-space: pre-wrap;
-      margin-top: 20px;
-      border: 1px solid #ccc;
-      padding: 10px;
-    }
-  </style>
+    <title>YouTube Auto Transcript</title>
 </head>
 <body>
-  <h1>YouTube Transcript</h1>
-  <input type="text" id="youtubeUrl" placeholder="Paste YouTube link" size="50">
-  <select id="lang">
-    <option value="en">English</option>
-    <option value="pl">Polski</option>
-    <option value="es">Español</option>
-  </select>
-  <button onclick="getTranscript()">Get Transcript</button>
+    <input type="text" id="videoUrl" placeholder="Wklej URL YouTube">
+    <button onclick="getAutoTranscript()">Pobierz automatyczny transkrypt</button>
+    <div id="result"></div>
 
-  <div id="transcript"></div>
-
-  <script>
-    function getVideoId(url) {
-      const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([a-zA-Z0-9_-]{11})/);
-      return match ? match[1] : null;
-    }
-
-    async function getTranscript() {
-      const url = document.getElementById("youtubeUrl").value.trim();
-      const lang = document.getElementById("lang").value;
-      const videoId = getVideoId(url);
-      const transcriptDiv = document.getElementById("transcript");
-
-      if (!videoId) {
-        transcriptDiv.textContent = "Invalid YouTube URL.";
+<script>
+function getAutoTranscript() {
+    const urlInput = document.getElementById('videoUrl').value;
+    let videoId = '';
+    try {
+        videoId = new URL(urlInput).searchParams.get('v');
+        if (!videoId) {
+            // Obsługa linków typu youtu.be/ID
+            const match = urlInput.match(/youtu\.be\/([a-zA-Z0-9_-]+)/);
+            if (match) videoId = match[1];
+        }
+    } catch (e) {
+        document.getElementById('result').innerText = 'Nieprawidłowy link!';
         return;
-      }
-
-      const transcriptUrl = `https://video.google.com/timedtext?lang=${lang}&v=${videoId}`;
-      
-      try {
-        const res = await fetch(transcriptUrl);
-        if (!res.ok) throw new Error("No captions found.");
-        const xml = await res.text();
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(xml, "text/xml");
-
-        const texts = Array.from(xmlDoc.getElementsByTagName("text")).map(el =>
-          el.textContent.replace(/&#39;/g, "'").replace(/&quot;/g, '"')
-        );
-
-        transcriptDiv.textContent = texts.length ? texts.join("\n") : "No transcript found.";
-      } catch (e) {
-        transcriptDiv.textContent = "Transcript could not be loaded.";
-      }
     }
-  </script>
+    if (!videoId) {
+        document.getElementById('result').innerText = 'Nieprawidłowy link!';
+        return;
+    }
+    const url = `https://video.google.com/timedtext?lang=en&v=${videoId}&kind=asr`;
+
+    fetch(url)
+    .then(response => response.text())
+    .then(data => {
+        if (!data.trim()) {
+            document.getElementById('result').innerText = 'Brak automatycznych napisów po angielsku!';
+            return;
+        }
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(data, "text/xml");
+        const textNodes = xml.getElementsByTagName('text');
+        let transcript = '';
+        for(let node of textNodes) {
+            transcript += node.textContent + ' ';
+        }
+        document.getElementById('result').innerText = transcript.trim();
+    })
+    .catch(error => {
+        document.getElementById('result').innerText = 'Błąd pobierania napisów!';
+        console.error(error);
+    });
+}
+</script>
 </body>
 </html>
